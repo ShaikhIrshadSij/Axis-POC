@@ -1,0 +1,13 @@
+<div class="video-dashboard">
+    <h1>Camera Dashboard</h1>
+    <mat-grid-list cols="3" rowHeight="1:1">
+        <mat-grid-tile *ngFor="let camera of cameras">
+            <mat-card (click)="openVideoModal(camera)">
+                <mat-card-header>
+                    <mat-card-title>{{ camera }}</mat-card-title>
+                </mat-card-header>
+                <img [src]="getMjpegUrl(camera)" alt="Camera stream">
+            </mat-card>
+        </mat-grid-tile>
+    </mat-grid-list>
+</div>
