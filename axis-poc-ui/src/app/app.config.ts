@@ -26,6 +26,6 @@ export const appConfig: ApplicationConfig = {
       MatCardModule,
       MatDialogModule,
       MatButtonModule
-    )
+    ), provideAnimationsAsync('noop')
   ]
 };
