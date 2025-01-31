@@ -35,7 +35,13 @@ namespace Axis.POC.Controllers
                 }
 
                 var stream = await response.Content.ReadAsStreamAsync();
-                return File(stream, "multipart/x-mixed-replace; boundary=--myboundary");
+                Response.Headers["Cache-Control"] = "no-cache";
+                Response.Headers["Pragma"] = "no-cache";
+                Response.Headers["Expires"] = "0";
+                Response.Headers["Connection"] = "keep-alive";
+                Response.Headers["Content-Type"] = "multipart/x-mixed-replace; boundary=--myboundary";
+
+                return new FileStreamResult(stream, "multipart/x-mixed-replace; boundary=--myboundary");
             }
             catch (Exception ex)
             {
@@ -55,20 +61,17 @@ namespace Axis.POC.Controllers
             try
             {
                 var cgiUrl = _cameraService.GetCameraUrlById(cameraId);
-                var client = _clientFactory.CreateClient();
-                var response = await client.GetAsync(cgiUrl, HttpCompletionOption.ResponseHeadersRead);
+                string outputDir = Path.Combine(@"E:\POC\Axis.POC\wwwroot\camera", cameraId);
+                Directory.CreateDirectory(outputDir); // Ensure directory exists
+                string outputPath = Path.Combine(outputDir, "playlist.m3u8");
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    return StatusCode((int)response.StatusCode, "Failed to connect to the camera");
-                }
+                GlobalFFOptions.Configure(options => options.BinaryFolder = @"E:\POC\Axis.POC\wwwroot");
 
-                var stream = await response.Content.ReadAsStreamAsync();
-
-                var outputPath = Path.Combine(Path.GetTempPath(), $"camera_{cameraId}.m3u8");
+                // ✅ Instead of piping stream, use the URL directly in FFmpeg
                 await FFMpegArguments
-                    .FromPipeInput(new StreamPipeSource(stream))
-                    .OutputToFile(outputPath, true, options => options
+                    .FromUrlInput(new Uri(cgiUrl), options => options
+                        .WithCustomArgument("-fflags nobuffer"))
+                    .OutputToFile(outputPath, overwrite: true, options => options
                         .WithVideoCodec("libx264")
                         .WithConstantRateFactor(23)
                         .WithVariableBitrate(4)
@@ -79,8 +82,9 @@ namespace Axis.POC.Controllers
                         .WithCustomArgument("-hls_playlist_type event"))
                     .ProcessAsynchronously();
 
-                var fileStream = System.IO.File.OpenRead(outputPath);
-                return File(fileStream, "application/vnd.apple.mpegurl", enableRangeProcessing: true);
+                // ✅ Return the generated HLS URL immediately
+                string hlsUrl = $"https://localhost:7293/camera/{cameraId}/playlist.m3u8";
+                return Ok(new { url = hlsUrl });
             }
             catch (Exception ex)
             {
@@ -92,6 +96,8 @@ namespace Axis.POC.Controllers
                 _cameraService.ReleaseCameraLock(cameraId);
             }
         }
+
+
 
         [HttpGet("cameras")]
         public IActionResult GetCameraList()

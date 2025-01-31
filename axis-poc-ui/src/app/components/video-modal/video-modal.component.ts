@@ -38,14 +38,15 @@ export class VideoModalComponent implements OnInit, OnDestroy {
 
   private loadStream() {
     this.videoStreamService.getFullVideoStream(this.data.cameraId).subscribe(
-      (blob) => {
-        const videoUrl = URL.createObjectURL(blob)
+      (data: any) => {
+        const videoUrl = data.url;  // Get HLS URL
+
         if (Hls.isSupported()) {
-          this.hls = new Hls()
-          this.hls.loadSource(videoUrl)
-          this.hls.attachMedia(this.videoPlayer.nativeElement)
+          this.hls = new Hls();
+          this.hls.loadSource(videoUrl);
+          this.hls.attachMedia(this.videoPlayer.nativeElement);
         } else if (this.videoPlayer.nativeElement.canPlayType("application/vnd.apple.mpegurl")) {
-          this.videoPlayer.nativeElement.src = videoUrl
+          this.videoPlayer.nativeElement.src = videoUrl;
         }
       },
       (error) => console.error("Error loading video stream:", error),

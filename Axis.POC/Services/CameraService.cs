@@ -10,8 +10,8 @@ namespace Axis.POC.Services
         public CameraService()
         {
             // Initialize camera URLs (you might want to load these from a configuration file or database)
-            _cameraUrls.Add("camera1", "http://camera1-ip-address/cgi-bin/stream.cgi");
-            _cameraUrls.Add("camera2", "http://camera2-ip-address/cgi-bin/stream.cgi");
+            _cameraUrls.Add("camera1", "http://83.56.31.69/mjpg/video.mjpg");
+            _cameraUrls.Add("camera2", "http://220.233.144.165:8888/mjpg/video.mjpg");
             // Add more cameras as needed
         }
 

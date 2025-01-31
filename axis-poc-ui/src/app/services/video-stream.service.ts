@@ -14,8 +14,8 @@ export class VideoStreamService {
         return `${this.apiUrl}/${cameraId}/mjpeg`
     }
 
-    getFullVideoStream(cameraId: string): Observable<Blob> {
-        return this.http.get(`${this.apiUrl}/${cameraId}/full`, { responseType: "blob" })
+    getFullVideoStream(cameraId: string) {
+        return this.http.get(`${this.apiUrl}/${cameraId}/full`)
     }
 
     getCameraList(): Observable<string[]> {
