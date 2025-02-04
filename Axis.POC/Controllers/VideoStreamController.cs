@@ -24,6 +24,12 @@ namespace Axis.POC.Controllers
             _webHostEnvironment = webHostEnvironment;
         }
 
+        [HttpGet("UI")]
+        public FileResult UI()
+        {
+            return PhysicalFile($"{_webHostEnvironment.WebRootPath}/UI/browser/index.html", "text/HTML");
+        }
+
         [HttpGet("{cameraId}/mjpeg")]
         public async Task<IActionResult> GetMjpegStream(string cameraId)
         {
