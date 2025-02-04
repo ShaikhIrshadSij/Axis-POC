@@ -7,7 +7,6 @@ import { Observable } from "rxjs"
 })
 export class VideoStreamService {
     private apiUrl = "https://localhost:7293/api/videostream"
-    // private apiUrl = "http://localhost:7000/api/videostream"
 
     constructor(@Inject(HttpClient) private http: HttpClient) { }
 
