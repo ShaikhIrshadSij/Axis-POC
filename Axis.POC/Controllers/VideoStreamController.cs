@@ -100,7 +100,7 @@ namespace Axis.POC.Controllers
                 .ProcessAsynchronously();
                 });
 
-                string hlsUrl = $"https://localhost:7293/api/videostream/fullscreen/{cameraId}/playlist.m3u8";
+                string hlsUrl = $"{Request.Scheme}://{Request.Host}/api/videostream/fullscreen/{cameraId}/playlist.m3u8";
                 return Ok(new { url = hlsUrl });
             }
             catch (Exception ex)
