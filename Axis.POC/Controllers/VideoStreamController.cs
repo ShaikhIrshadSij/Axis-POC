@@ -2,6 +2,8 @@
 using FFMpegCore;
 using FFMpegCore.Pipes;
 using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics;
+using System.IO;
 
 namespace Axis.POC.Controllers
 {
@@ -12,12 +14,14 @@ namespace Axis.POC.Controllers
         private readonly ILogger<VideoStreamController> _logger;
         private readonly IHttpClientFactory _clientFactory;
         private readonly CameraService _cameraService;
+        private readonly IWebHostEnvironment _webHostEnvironment;
 
-        public VideoStreamController(ILogger<VideoStreamController> logger, IHttpClientFactory clientFactory, CameraService cameraService)
+        public VideoStreamController(ILogger<VideoStreamController> logger, IHttpClientFactory clientFactory, CameraService cameraService, IWebHostEnvironment webHostEnvironment)
         {
             _logger = logger;
             _clientFactory = clientFactory;
             _cameraService = cameraService;
+            _webHostEnvironment = webHostEnvironment;
         }
 
         [HttpGet("{cameraId}/mjpeg")]
@@ -61,16 +65,38 @@ namespace Axis.POC.Controllers
             try
             {
                 var cgiUrl = _cameraService.GetCameraUrlById(cameraId);
-                string outputDir = Path.Combine(@"E:\POC\Axis.POC\wwwroot\camera", cameraId);
+                string outputDir = Path.Combine($@"{_webHostEnvironment.WebRootPath}\camera", cameraId);
                 Directory.CreateDirectory(outputDir); // Ensure directory exists
                 string outputPath = Path.Combine(outputDir, "playlist.m3u8");
 
-                GlobalFFOptions.Configure(options => options.BinaryFolder = @"E:\POC\Axis.POC\wwwroot");
+                GlobalFFOptions.Configure(options => options.BinaryFolder = _webHostEnvironment.WebRootPath);
 
-                // ✅ Instead of piping stream, use the URL directly in FFmpeg
-                await FFMpegArguments
-                    .FromUrlInput(new Uri(cgiUrl), options => options
-                        .WithCustomArgument("-fflags nobuffer"))
+                //_ = Task.Run(async () =>
+                //{
+                //    _ = FFMpegArguments
+                //    .FromUrlInput(new Uri(cgiUrl), options => options
+                //        .WithCustomArgument("-fflags nobuffer")) // Prevents buffering delay
+                //    .OutputToFile(outputPath, overwrite: true, options => options
+                //        .WithVideoCodec("libx264")
+                //        .WithConstantRateFactor(23)
+                //        .WithVariableBitrate(4)
+                //        .WithAudioCodec("aac")
+                //        .WithAudioBitrate(128)
+                //        .ForceFormat("hls")
+                //        .WithCustomArgument("-hls_time 4")
+                //        .WithCustomArgument("-hls_list_size 6") // Keeps 6 segments
+                //        .WithCustomArgument("-hls_flags delete_segments+append_list")) // Avoids infinite growth
+                //    .NotifyOnProgress(progress => Console.WriteLine($"Processing: {progress}%"))
+                //    .ProcessAsynchronously();
+                //});
+
+                var client = _clientFactory.CreateClient();
+                var response = await client.GetAsync(cgiUrl, HttpCompletionOption.ResponseHeadersRead);
+                var stream = await response.Content.ReadAsStreamAsync();
+                _ = Task.Run(() =>
+                {
+                    FFMpegArguments
+                    .FromPipeInput(new StreamPipeSource(stream))
                     .OutputToFile(outputPath, overwrite: true, options => options
                         .WithVideoCodec("libx264")
                         .WithConstantRateFactor(23)
@@ -79,11 +105,38 @@ namespace Axis.POC.Controllers
                         .WithAudioBitrate(128)
                         .ForceFormat("hls")
                         .WithCustomArgument("-hls_time 4")
-                        .WithCustomArgument("-hls_playlist_type event"))
+                        .WithCustomArgument("-hls_playlist_type event")
+                        .WithCustomArgument("-hls_flags delete_segments+append_list") // Ensure the playlist appends
+                        .WithCustomArgument("-hls_list_size 6") // Max playlist size
+                    )
                     .ProcessAsynchronously();
+                });
 
-                // ✅ Return the generated HLS URL immediately
-                string hlsUrl = $"https://localhost:7293/camera/{cameraId}/playlist.m3u8";
+                //string ffmpegArgs = $"-i \"{cgiUrl}\" " +
+                //            "-fflags nobuffer " +
+                //            "-c:v libx264 -crf 23 -b:v 4M " +
+                //            "-c:a aac -b:a 128k " +
+                //            "-f hls " +
+                //            "-hls_time 4 " +
+                //            "-hls_list_size 6 " +
+                //            "-hls_flags delete_segments+append_list " +
+                //            $"\"{outputPath}\"";
+
+
+                //var processStartInfo = new ProcessStartInfo
+                //{
+                //    FileName = $"{_webHostEnvironment.WebRootPath}/ffmpeg.exe",
+                //    Arguments = ffmpegArgs,
+                //    RedirectStandardOutput = true,
+                //    RedirectStandardError = true,
+                //    UseShellExecute = false,
+                //    CreateNoWindow = true
+                //};
+
+                //var process = new Process { StartInfo = processStartInfo };
+                //process.Start();
+
+                string hlsUrl = $"https://localhost:7293/api/videostream/fullscreen/{cameraId}/playlist.m3u8";
                 return Ok(new { url = hlsUrl });
             }
             catch (Exception ex)
@@ -97,7 +150,12 @@ namespace Axis.POC.Controllers
             }
         }
 
-
+        [HttpGet("fullscreen/{cameraId}/{type}")]
+        public async Task<IActionResult> GetStreamFullVideoStream(string cameraId, string type)
+        {
+            var stream = new FileStream($"{_webHostEnvironment.WebRootPath}/camera/{cameraId}/{type}", System.IO.FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return File(stream, "application/vnd.apple.mpegurl");
+        }
 
         [HttpGet("cameras")]
         public IActionResult GetCameraList()
