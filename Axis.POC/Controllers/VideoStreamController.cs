@@ -71,70 +71,28 @@ namespace Axis.POC.Controllers
 
                 GlobalFFOptions.Configure(options => options.BinaryFolder = _webHostEnvironment.WebRootPath);
 
-                //_ = Task.Run(async () =>
-                //{
-                //    _ = FFMpegArguments
-                //    .FromUrlInput(new Uri(cgiUrl), options => options
-                //        .WithCustomArgument("-fflags nobuffer")) // Prevents buffering delay
-                //    .OutputToFile(outputPath, overwrite: true, options => options
-                //        .WithVideoCodec("libx264")
-                //        .WithConstantRateFactor(23)
-                //        .WithVariableBitrate(4)
-                //        .WithAudioCodec("aac")
-                //        .WithAudioBitrate(128)
-                //        .ForceFormat("hls")
-                //        .WithCustomArgument("-hls_time 4")
-                //        .WithCustomArgument("-hls_list_size 6") // Keeps 6 segments
-                //        .WithCustomArgument("-hls_flags delete_segments+append_list")) // Avoids infinite growth
-                //    .NotifyOnProgress(progress => Console.WriteLine($"Processing: {progress}%"))
-                //    .ProcessAsynchronously();
-                //});
-
                 var client = _clientFactory.CreateClient();
                 var response = await client.GetAsync(cgiUrl, HttpCompletionOption.ResponseHeadersRead);
                 var stream = await response.Content.ReadAsStreamAsync();
                 _ = Task.Run(() =>
                 {
                     FFMpegArguments
-                    .FromPipeInput(new StreamPipeSource(stream))
-                    .OutputToFile(outputPath, overwrite: true, options => options
-                        .WithVideoCodec("libx264")
-                        .WithConstantRateFactor(23)
-                        .WithVariableBitrate(4)
-                        .WithAudioCodec("aac")
-                        .WithAudioBitrate(128)
-                        .ForceFormat("hls")
-                        .WithCustomArgument("-hls_time 4")
-                        .WithCustomArgument("-hls_playlist_type event")
-                        .WithCustomArgument("-hls_flags delete_segments+append_list") // Ensure the playlist appends
-                        .WithCustomArgument("-hls_list_size 6") // Max playlist size
-                    )
-                    .ProcessAsynchronously();
+                .FromPipeInput(new StreamPipeSource(stream))
+                .OutputToFile(outputPath, overwrite: true, options => options
+                    .WithVideoCodec("libx264")
+                    .WithConstantRateFactor(23)
+                    .WithVariableBitrate(4)
+                    .WithAudioCodec("aac")
+                    .WithAudioBitrate(128)
+                    .ForceFormat("hls")
+                    .WithCustomArgument("-hls_time 2") // Set 2-second segment duration
+                    .WithCustomArgument("-hls_playlist_type event") // Keep playlist updated dynamically
+                    .WithCustomArgument("-hls_flags append_list+delete_segments") // Dynamically append and delete segments
+                    .WithCustomArgument("-hls_list_size 10") // Keep the last 10 segments in the playlist
+                    .WithCustomArgument($"-hls_segment_filename {Path.Combine(outputDir, "playlist%d.ts")}") // Properly define segment filename
+                )
+                .ProcessAsynchronously();
                 });
-
-                //string ffmpegArgs = $"-i \"{cgiUrl}\" " +
-                //            "-fflags nobuffer " +
-                //            "-c:v libx264 -crf 23 -b:v 4M " +
-                //            "-c:a aac -b:a 128k " +
-                //            "-f hls " +
-                //            "-hls_time 4 " +
-                //            "-hls_list_size 6 " +
-                //            "-hls_flags delete_segments+append_list " +
-                //            $"\"{outputPath}\"";
-
-
-                //var processStartInfo = new ProcessStartInfo
-                //{
-                //    FileName = $"{_webHostEnvironment.WebRootPath}/ffmpeg.exe",
-                //    Arguments = ffmpegArgs,
-                //    RedirectStandardOutput = true,
-                //    RedirectStandardError = true,
-                //    UseShellExecute = false,
-                //    CreateNoWindow = true
-                //};
-
-                //var process = new Process { StartInfo = processStartInfo };
-                //process.Start();
 
                 string hlsUrl = $"https://localhost:7293/api/videostream/fullscreen/{cameraId}/playlist.m3u8";
                 return Ok(new { url = hlsUrl });
@@ -154,7 +112,7 @@ namespace Axis.POC.Controllers
         public async Task<IActionResult> GetStreamFullVideoStream(string cameraId, string type)
         {
             var stream = new FileStream($"{_webHostEnvironment.WebRootPath}/camera/{cameraId}/{type}", System.IO.FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            return File(stream, "application/vnd.apple.mpegurl");
+            return File(stream, "video/MP2T");
         }
 
         [HttpGet("cameras")]
