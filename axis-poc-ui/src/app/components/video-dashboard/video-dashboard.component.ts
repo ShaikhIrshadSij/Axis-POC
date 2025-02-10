@@ -25,7 +25,7 @@ import { CommonModule } from '@angular/common'
 })
 export class VideoDashboardComponent implements OnInit {
   cameras: string[] = []
-
+  streams: any = {}
   constructor(
     private videoStreamService: VideoStreamService,
     private dialog: MatDialog,
@@ -37,13 +37,20 @@ export class VideoDashboardComponent implements OnInit {
 
   loadCameras() {
     this.videoStreamService.getCameraList().subscribe(
-      (cameras) => (this.cameras = cameras),
+      (cameras) => {
+        this.cameras = cameras;
+        for (let i = 0; i < this.cameras.length; i++) {
+          setInterval(() => {
+            this.streams[this.cameras[i]] = this.videoStreamService.getMjpegStream(this.cameras[i], new Date().valueOf() + Math.ceil(Math.random() * 100))
+          }, 1000 * 2)
+        }
+      },
       (error) => console.error("Error fetching cameras:", error),
     )
   }
 
   getMjpegUrl(cameraId: string): string {
-    return this.videoStreamService.getMjpegStream(cameraId)
+    return this.videoStreamService.getMjpegStream(cameraId, 0)
   }
 
   openVideoModal(cameraId: string) {

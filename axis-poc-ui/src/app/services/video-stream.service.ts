@@ -10,8 +10,8 @@ export class VideoStreamService {
 
     constructor(@Inject(HttpClient) private http: HttpClient) { }
 
-    getMjpegStream(cameraId: string): string {
-        return `${this.apiUrl}/${cameraId}/mjpeg`
+    getMjpegStream(cameraId: string, count = 0): string {
+        return `${this.apiUrl}/${cameraId}/mjpeg?i=${count}`
     }
 
     getFullVideoStream(cameraId: string) {

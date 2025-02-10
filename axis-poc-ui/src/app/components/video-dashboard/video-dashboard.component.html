@@ -6,7 +6,7 @@
                 <mat-card-header>
                     <mat-card-title>{{ camera }}</mat-card-title>
                 </mat-card-header>
-                <img [src]="getMjpegUrl(camera)" alt="Camera stream">
+                <img [src]="streams[camera]" alt="Camera stream">
             </mat-card>
         </mat-grid-tile>
     </mat-grid-list>

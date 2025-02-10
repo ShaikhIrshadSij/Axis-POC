@@ -3,6 +3,7 @@ using FFMpegCore;
 using FFMpegCore.Pipes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 
@@ -16,7 +17,8 @@ namespace Axis.POC.Controllers
         private readonly IHttpClientFactory _clientFactory;
         private readonly CameraService _cameraService;
         private readonly IWebHostEnvironment _webHostEnvironment;
-        private static Dictionary<string, Stream> _streamKeys = new Dictionary<string, Stream>();
+        private static readonly ConcurrentDictionary<string, byte[]> _cameraFrames = new();
+        private static readonly Dictionary<string, Timer> _cameraTimers = new();
 
         public VideoStreamController(ILogger<VideoStreamController> logger, IHttpClientFactory clientFactory, CameraService cameraService, IWebHostEnvironment webHostEnvironment)
         {
@@ -35,54 +37,63 @@ namespace Axis.POC.Controllers
         [HttpGet("{cameraId}/mjpeg")]
         public async Task<IActionResult> GetMjpegStream(string cameraId)
         {
-            try
-            {
-                // Check if the stream is cached
-                if (_streamKeys.TryGetValue(cameraId, out Stream? cachedStream))
-                {
-                    if (cachedStream != null)
-                    {
-                        // Set headers for MJPEG stream
-                        Response.Headers["Cache-Control"] = "no-cache";
-                        Response.Headers["Pragma"] = "no-cache";
-                        Response.Headers["Expires"] = "0";
-                        Response.Headers["Connection"] = "keep-alive";
-                        Response.Headers["Content-Type"] = "multipart/x-mixed-replace; boundary=--myboundary";
+            Response.Headers["Cache-Control"] = "no-cache";
+            Response.Headers["Pragma"] = "no-cache";
+            Response.Headers["Expires"] = "0";
+            Response.Headers["Connection"] = "keep-alive";
+            Response.Headers["Content-Type"] = "image/jpeg";
 
-                        return new FileStreamResult(cachedStream, "multipart/x-mixed-replace; boundary=--myboundary");
+            if (!_cameraFrames.TryGetValue(cameraId, out byte[] frame) || frame == null)
+            {
+                var cgiUrl = _cameraService.GetCameraUrlById(cameraId);
+                if (string.IsNullOrEmpty(cgiUrl))
+                {
+                    return BadRequest("Invalid camera ID.");
+                }
+
+                try
+                {
+                    if (!_cameraTimers.ContainsKey(cameraId))
+                    {
+                        GlobalFFOptions.Configure(options => options.BinaryFolder = _webHostEnvironment.WebRootPath);
+                        using var frameStream = new MemoryStream();
+                        await FFMpegArguments
+                            .FromUrlInput(new Uri(cgiUrl), options => options.WithFramerate(20))
+                            .OutputToPipe(new StreamPipeSink(frameStream), options => options
+                                .WithVideoCodec("mjpeg")
+                                .ForceFormat("mjpeg")
+                                .WithFrameOutputCount(1))
+                            .ProcessAsynchronously();
+
+                        frameStream.Seek(0, SeekOrigin.Begin);
+                        frame = frameStream.ToArray();
+                        _cameraFrames[cameraId] = frame;
+                        _cameraTimers[cameraId] = new Timer(async _ =>
+                        {
+                            GlobalFFOptions.Configure(options => options.BinaryFolder = _webHostEnvironment.WebRootPath);
+                            using var frameStream = new MemoryStream();
+                            await FFMpegArguments
+                                .FromUrlInput(new Uri(cgiUrl), options => options.WithFramerate(20))
+                                .OutputToPipe(new StreamPipeSink(frameStream), options => options
+                                    .WithVideoCodec("mjpeg")
+                                    .ForceFormat("mjpeg")
+                                    .WithFrameOutputCount(1))
+                                .ProcessAsynchronously();
+
+                            frameStream.Seek(0, SeekOrigin.Begin);
+                            frame = frameStream.ToArray();
+                            _cameraFrames[cameraId] = frame;
+                        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(2));
                     }
                 }
-
-                // Fetch the stream if not cached
-                var cgiUrl = _cameraService.GetCameraUrlById(cameraId);
-                var client = _clientFactory.CreateClient();
-                var response = await client.GetAsync(cgiUrl, HttpCompletionOption.ResponseHeadersRead);
-
-                if (!response.IsSuccessStatusCode)
+                catch (Exception ex)
                 {
-                    return StatusCode((int)response.StatusCode, "Failed to connect to the camera");
+                    _logger.LogError(ex, "Error capturing frame from camera {CameraId}", cameraId);
+                    return StatusCode(500, "Error capturing frame.");
                 }
-
-                // Create a MemoryStream for caching the MJPEG stream
-                var stream = await response.Content.ReadAsStreamAsync();
-
-                // Cache the memory stream for future requests
-                _streamKeys[cameraId] = stream;
-
-                // Set headers and return the stream
-                Response.Headers["Cache-Control"] = "no-cache";
-                Response.Headers["Pragma"] = "no-cache";
-                Response.Headers["Expires"] = "0";
-                Response.Headers["Connection"] = "keep-alive";
-                Response.Headers["Content-Type"] = "multipart/x-mixed-replace; boundary=--myboundary";
-
-                return new FileStreamResult(stream, "multipart/x-mixed-replace; boundary=--myboundary");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error streaming MJPEG for camera {CameraId}", cameraId);
-                return StatusCode(500, "An error occurred while streaming the video");
-            }
+
+            return File(frame, "image/jpeg");
         }
 
 
