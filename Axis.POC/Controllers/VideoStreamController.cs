@@ -2,6 +2,7 @@
 using FFMpegCore;
 using FFMpegCore.Pipes;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using System.Diagnostics;
 using System.IO;
 
@@ -15,6 +16,7 @@ namespace Axis.POC.Controllers
         private readonly IHttpClientFactory _clientFactory;
         private readonly CameraService _cameraService;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private static Dictionary<string, Stream> _streamKeys = new Dictionary<string, Stream>();
 
         public VideoStreamController(ILogger<VideoStreamController> logger, IHttpClientFactory clientFactory, CameraService cameraService, IWebHostEnvironment webHostEnvironment)
         {
@@ -35,6 +37,23 @@ namespace Axis.POC.Controllers
         {
             try
             {
+                // Check if the stream is cached
+                if (_streamKeys.TryGetValue(cameraId, out Stream? cachedStream))
+                {
+                    if (cachedStream != null)
+                    {
+                        // Set headers for MJPEG stream
+                        Response.Headers["Cache-Control"] = "no-cache";
+                        Response.Headers["Pragma"] = "no-cache";
+                        Response.Headers["Expires"] = "0";
+                        Response.Headers["Connection"] = "keep-alive";
+                        Response.Headers["Content-Type"] = "multipart/x-mixed-replace; boundary=--myboundary";
+
+                        return new FileStreamResult(cachedStream, "multipart/x-mixed-replace; boundary=--myboundary");
+                    }
+                }
+
+                // Fetch the stream if not cached
                 var cgiUrl = _cameraService.GetCameraUrlById(cameraId);
                 var client = _clientFactory.CreateClient();
                 var response = await client.GetAsync(cgiUrl, HttpCompletionOption.ResponseHeadersRead);
@@ -44,7 +63,13 @@ namespace Axis.POC.Controllers
                     return StatusCode((int)response.StatusCode, "Failed to connect to the camera");
                 }
 
+                // Create a MemoryStream for caching the MJPEG stream
                 var stream = await response.Content.ReadAsStreamAsync();
+
+                // Cache the memory stream for future requests
+                _streamKeys[cameraId] = stream;
+
+                // Set headers and return the stream
                 Response.Headers["Cache-Control"] = "no-cache";
                 Response.Headers["Pragma"] = "no-cache";
                 Response.Headers["Expires"] = "0";
@@ -59,6 +84,7 @@ namespace Axis.POC.Controllers
                 return StatusCode(500, "An error occurred while streaming the video");
             }
         }
+
 
         [HttpGet("{cameraId}/full")]
         public async Task<IActionResult> GetFullVideoStream(string cameraId)
