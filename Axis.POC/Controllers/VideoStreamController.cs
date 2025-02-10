@@ -80,9 +80,6 @@ namespace Axis.POC.Controllers
                         // Flush the response to ensure the frame is sent immediately
                         await Response.Body.FlushAsync();
                     }
-
-                    // Delay to control the frame rate (e.g., 2 frames per second)
-                    await Task.Delay(500);
                 }
             }
             catch (Exception ex)
@@ -136,7 +133,7 @@ namespace Axis.POC.Controllers
                     {
                         _logger.LogError(ex, "Error refreshing frame for camera {CameraId}", cameraId);
                     }
-                }, null, TimeSpan.Zero, TimeSpan.FromSeconds(2));
+                }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
             }
             catch (Exception ex)
             {
