@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using Newtonsoft.Json;
+using System.Collections.Concurrent;
 
 namespace Axis.POC.Services
 {
@@ -7,13 +8,14 @@ namespace Axis.POC.Services
         private readonly ConcurrentDictionary<string, SemaphoreSlim> _cameraLocks = new();
         private readonly Dictionary<string, string> _cameraUrls = new();
 
-        public CameraService()
+        public CameraService(IWebHostEnvironment webHostEnvironment)
         {
             // Initialize camera URLs (you might want to load these from a configuration file or database)
-            _cameraUrls.Add("camera4", "http://80.235.76.111:18081/mjpg/video.mjpg");
+            //_cameraUrls.Add("camera4", "http://80.235.76.111:18081/mjpg/video.mjpg");
             //_cameraUrls.Add("camera1", "http://83.56.31.69/mjpg/video.mjpg");
-            //_cameraUrls.Add("camera2", "http://220.233.144.165:8888/mjpg/video.mjpg");
+            _cameraUrls.Add("camera2", "http://220.233.144.165:8888/mjpg/video.mjpg");
             //_cameraUrls.Add("camera3", "https://netcam3.kstest01.corp/axis-cgi/mjpg/video.cgi?fps=20&resolution=320X240&compression=10");
+            //_cameraUrls = JsonConvert.DeserializeObject<Dictionary<string, string>>(System.IO.File.ReadAllText($"{webHostEnvironment.WebRootPath}/cameras.json"));
             // Add more cameras as needed
         }
 

@@ -39,11 +39,11 @@ export class VideoDashboardComponent implements OnInit {
     this.videoStreamService.getCameraList().subscribe(
       (cameras) => {
         this.cameras = cameras;
-        for (let i = 0; i < this.cameras.length; i++) {
-          setInterval(() => {
+        setInterval(() => {
+          for (let i = 0; i < this.cameras.length; i++) {
             this.streams[this.cameras[i]] = this.videoStreamService.getMjpegStream(this.cameras[i], new Date().valueOf() + Math.ceil(Math.random() * 100))
-          }, 1000 * 2)
-        }
+          }
+        }, 1000)
       },
       (error) => console.error("Error fetching cameras:", error),
     )

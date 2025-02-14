@@ -17,7 +17,7 @@ namespace Axis.POC.Controllers
         private readonly IHttpClientFactory _clientFactory;
         private readonly CameraService _cameraService;
         private readonly IWebHostEnvironment _webHostEnvironment;
-        private static readonly ConcurrentDictionary<string, byte[]> _cameraFrames = new();
+        private static readonly ConcurrentDictionary<string, string> _cameraFrames = new();
         private static readonly Dictionary<string, Timer> _cameraTimers = new();
 
         public VideoStreamController(ILogger<VideoStreamController> logger, IHttpClientFactory clientFactory, CameraService cameraService, IWebHostEnvironment webHostEnvironment)
@@ -43,7 +43,7 @@ namespace Axis.POC.Controllers
             Response.Headers["Connection"] = "keep-alive";
             Response.Headers["Content-Type"] = "image/jpeg";
 
-            if (!_cameraFrames.TryGetValue(cameraId, out byte[] frame) || frame == null)
+            if (!_cameraFrames.TryGetValue(cameraId, out string frame) || frame == null)
             {
                 var cgiUrl = _cameraService.GetCameraUrlById(cameraId);
                 if (string.IsNullOrEmpty(cgiUrl))
@@ -57,33 +57,57 @@ namespace Axis.POC.Controllers
                     {
                         GlobalFFOptions.Configure(options => options.BinaryFolder = _webHostEnvironment.WebRootPath);
                         using var frameStream = new MemoryStream();
-                        await FFMpegArguments
-                            .FromUrlInput(new Uri(cgiUrl), options => options.WithFramerate(20))
-                            .OutputToPipe(new StreamPipeSink(frameStream), options => options
+                        var filePath = $"{_webHostEnvironment.WebRootPath}/{cameraId}.jpg";
+                        //FFMpegArguments
+                        //    .FromUrlInput(new Uri(cgiUrl))
+                        //    .OutputToFile(filePath, true, options => options
+                        //        .WithCustomArgument("-fflags nobuffer")
+                        //        .WithCustomArgument("-flags low_delay")
+                        //        .WithCustomArgument("-update 1"))
+                        //    .ProcessSynchronously();
+                        while (true)
+                        {
+                            FFMpegArguments
+                            .FromUrlInput(new Uri(cgiUrl))
+                            .OutputToFile(filePath, true, options => options
                                 .WithVideoCodec("mjpeg")
                                 .ForceFormat("mjpeg")
-                                .WithFrameOutputCount(1))
-                            .ProcessAsynchronously();
+                                .WithCustomArgument("-fflags nobuffer")
+                                .WithCustomArgument("-frames:v 1")
+                                .WithCustomArgument("-update 1"))
+                             .NotifyOnProgress(
+                                    progress =>
+                                    {
+                                        Console.WriteLine($"Image updated for {filePath} at {DateTime.Now}");
+                                    })
+                            .ProcessSynchronously();
 
-                        frameStream.Seek(0, SeekOrigin.Begin);
-                        frame = frameStream.ToArray();
-                        _cameraFrames[cameraId] = frame;
-                        _cameraTimers[cameraId] = new Timer(async _ =>
-                        {
-                            GlobalFFOptions.Configure(options => options.BinaryFolder = _webHostEnvironment.WebRootPath);
-                            using var frameStream = new MemoryStream();
-                            await FFMpegArguments
-                                .FromUrlInput(new Uri(cgiUrl), options => options.WithFramerate(20))
-                                .OutputToPipe(new StreamPipeSink(frameStream), options => options
-                                    .WithVideoCodec("mjpeg")
-                                    .ForceFormat("mjpeg")
-                                    .WithFrameOutputCount(1))
-                                .ProcessAsynchronously();
+                            Thread.Sleep(1000);
+                        }
 
-                            frameStream.Seek(0, SeekOrigin.Begin);
-                            frame = frameStream.ToArray();
-                            _cameraFrames[cameraId] = frame;
-                        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(2));
+                        //frameStream.Seek(0, SeekOrigin.Begin);
+                        //frame = frameStream.ToArray();
+                        _cameraFrames[cameraId] = filePath;
+                        frame = filePath;
+                        //frameStream.Seek(0, SeekOrigin.Begin);
+                        //frame = frameStream.ToArray();
+                        //_cameraFrames[cameraId] = frame;
+                        //_cameraTimers[cameraId] = new Timer(async _ =>
+                        //{
+                        //    GlobalFFOptions.Configure(options => options.BinaryFolder = _webHostEnvironment.WebRootPath);
+                        //    using var frameStream = new MemoryStream();
+                        //    await FFMpegArguments
+                        //        .FromUrlInput(new Uri(cgiUrl), options => options.WithFramerate(20))
+                        //        .OutputToPipe(new StreamPipeSink(frameStream), options => options
+                        //            .WithVideoCodec("mjpeg")
+                        //            .ForceFormat("mjpeg")
+                        //            .WithFrameOutputCount(1))
+                        //        .ProcessAsynchronously();
+
+                        //    frameStream.Seek(0, SeekOrigin.Begin);
+                        //    frame = frameStream.ToArray();
+                        //    _cameraFrames[cameraId] = frame;
+                        //}, null, TimeSpan.Zero, TimeSpan.FromSeconds(2));
                     }
                 }
                 catch (Exception ex)
@@ -92,8 +116,11 @@ namespace Axis.POC.Controllers
                     return StatusCode(500, "Error capturing frame.");
                 }
             }
-
-            return File(frame, "image/jpeg");
+            if (System.IO.File.Exists(frame))
+            {
+                return File(System.IO.File.ReadAllBytes(frame), "image/jpeg");
+            }
+            return NoContent();
         }
 
 
