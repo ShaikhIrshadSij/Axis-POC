@@ -37,11 +37,14 @@ export class VideoDashboardComponent implements OnInit {
 
   loadCameras() {
     this.videoStreamService.getCameraList().subscribe(
-      (cameras) => {
+      async (cameras) => {
         this.cameras = cameras;
-        setInterval(() => {
+        for (let i = 0; i < this.cameras.length; i++) {
+          this.streams[this.cameras[i]] = await this.videoStreamService.getMjpegStream(this.cameras[i], new Date().valueOf() + Math.ceil(Math.random() * 100))
+        }
+        setInterval(async () => {
           for (let i = 0; i < this.cameras.length; i++) {
-            this.streams[this.cameras[i]] = this.videoStreamService.getMjpegStream(this.cameras[i], new Date().valueOf() + Math.ceil(Math.random() * 100))
+            this.streams[this.cameras[i]] = this.videoStreamService.getMjpegStreamImg(this.cameras[i], new Date().valueOf() + Math.ceil(Math.random() * 100))
           }
         }, 1000)
       },
@@ -49,7 +52,7 @@ export class VideoDashboardComponent implements OnInit {
     )
   }
 
-  getMjpegUrl(cameraId: string): string {
+  getMjpegUrl(cameraId: string) {
     return this.videoStreamService.getMjpegStream(cameraId, 0)
   }
 

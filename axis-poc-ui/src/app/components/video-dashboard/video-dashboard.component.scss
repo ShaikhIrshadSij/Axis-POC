@@ -11,5 +11,5 @@ mat-card {
 img {
     width: 100%;
     height: calc(100% - 56px); // Adjust based on your card header height
-    object-fit: cover;
+    object-fit: contain;
 }

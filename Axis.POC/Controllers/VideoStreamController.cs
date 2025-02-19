@@ -37,11 +37,11 @@ namespace Axis.POC.Controllers
         [HttpGet("{cameraId}/mjpeg")]
         public async Task<IActionResult> GetMjpegStream(string cameraId)
         {
-            Response.Headers["Cache-Control"] = "no-cache";
-            Response.Headers["Pragma"] = "no-cache";
-            Response.Headers["Expires"] = "0";
-            Response.Headers["Connection"] = "keep-alive";
-            Response.Headers["Content-Type"] = "image/jpeg";
+            //Response.Headers["Cache-Control"] = "no-cache";
+            //Response.Headers["Pragma"] = "no-cache";
+            //Response.Headers["Expires"] = "0";
+            //Response.Headers["Connection"] = "keep-alive";
+            //Response.Headers["Content-Type"] = "image/jpeg";
 
             if (!_cameraFrames.TryGetValue(cameraId, out string frame) || frame == null)
             {
@@ -53,7 +53,7 @@ namespace Axis.POC.Controllers
 
                 try
                 {
-                    if (!_cameraTimers.ContainsKey(cameraId))
+                    if (!_cameraFrames.ContainsKey(cameraId))
                     {
                         GlobalFFOptions.Configure(options => options.BinaryFolder = _webHostEnvironment.WebRootPath);
                         using var frameStream = new MemoryStream();
@@ -65,30 +65,18 @@ namespace Axis.POC.Controllers
                         //        .WithCustomArgument("-flags low_delay")
                         //        .WithCustomArgument("-update 1"))
                         //    .ProcessSynchronously();
-                        while (true)
-                        {
-                            FFMpegArguments
-                            .FromUrlInput(new Uri(cgiUrl))
-                            .OutputToFile(filePath, true, options => options
-                                .WithVideoCodec("mjpeg")
-                                .ForceFormat("mjpeg")
-                                .WithCustomArgument("-fflags nobuffer")
-                                .WithCustomArgument("-frames:v 1")
-                                .WithCustomArgument("-update 1"))
-                             .NotifyOnProgress(
-                                    progress =>
-                                    {
-                                        Console.WriteLine($"Image updated for {filePath} at {DateTime.Now}");
-                                    })
-                            .ProcessSynchronously();
-
-                            Thread.Sleep(1000);
-                        }
+                        _cameraFrames[cameraId] = filePath;
+                        frame = filePath;
+                        FFMpegArguments
+                                .FromUrlInput(new Uri(cgiUrl))
+                                .OutputToFile(filePath, true, options => options
+                                    .WithCustomArgument("-y -q:v 1")
+                                    .WithCustomArgument("-update 1"))
+                                .ProcessSynchronously();
 
                         //frameStream.Seek(0, SeekOrigin.Begin);
                         //frame = frameStream.ToArray();
-                        _cameraFrames[cameraId] = filePath;
-                        frame = filePath;
+
                         //frameStream.Seek(0, SeekOrigin.Begin);
                         //frame = frameStream.ToArray();
                         //_cameraFrames[cameraId] = frame;
@@ -113,12 +101,14 @@ namespace Axis.POC.Controllers
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error capturing frame from camera {CameraId}", cameraId);
-                    return StatusCode(500, "Error capturing frame.");
                 }
             }
             if (System.IO.File.Exists(frame))
             {
-                return File(System.IO.File.ReadAllBytes(frame), "image/jpeg");
+                return Ok(new
+                {
+                    url = $"{Request.Scheme}://{Request.Host}/{cameraId}.jpg"
+                });
             }
             return NoContent();
         }

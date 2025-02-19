@@ -10,9 +10,11 @@ export class VideoStreamService {
 
     constructor(@Inject(HttpClient) private http: HttpClient) { }
 
-    getMjpegStream(cameraId: string, count = 0): string {
-        return this.getMjpegStreamImg(cameraId, count)
-        return `${this.apiUrl}/${cameraId}/mjpeg?i=${count}`
+    async getMjpegStream(cameraId: string, count = 0) {
+        // return this.getMjpegStreamImg(cameraId, count)
+        const data = await this.http.get(`${this.apiUrl}/${cameraId}/mjpeg?i=${count}`).toPromise() as any
+        return `${data.url}?i=${count}`;
+        // return `${this.apiUrl}/${cameraId}/mjpeg?i=${count}`
     }
 
     getMjpegStreamImg(cameraId: string, count = 0): string {
