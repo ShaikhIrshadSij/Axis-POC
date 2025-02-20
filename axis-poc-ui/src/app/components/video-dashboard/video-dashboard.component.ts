@@ -37,16 +37,16 @@ export class VideoDashboardComponent implements OnInit {
 
   loadCameras() {
     this.videoStreamService.getCameraList().subscribe(
-      async (cameras) => {
+      (cameras) => {
         this.cameras = cameras;
         for (let i = 0; i < this.cameras.length; i++) {
-          this.streams[this.cameras[i]] = await this.videoStreamService.getMjpegStream(this.cameras[i], new Date().valueOf() + Math.ceil(Math.random() * 100))
+          this.streams[this.cameras[i]] = this.videoStreamService.getMjpegStream(this.cameras[i], new Date().valueOf() + Math.ceil(Math.random() * 100))
         }
-        setInterval(async () => {
+        setInterval(() => {
           for (let i = 0; i < this.cameras.length; i++) {
             this.streams[this.cameras[i]] = this.videoStreamService.getMjpegStreamImg(this.cameras[i], new Date().valueOf() + Math.ceil(Math.random() * 100))
           }
-        }, 1000)
+        }, 500)
       },
       (error) => console.error("Error fetching cameras:", error),
     )
@@ -57,11 +57,11 @@ export class VideoDashboardComponent implements OnInit {
   }
 
   openVideoModal(cameraId: string) {
-    this.dialog.open(VideoModalComponent, {
-      width: "80%",
-      height: "80%",
-      data: { cameraId },
-    })
+    // this.dialog.open(VideoModalComponent, {
+    //   width: "80%",
+    //   height: "80%",
+    //   data: { cameraId },
+    // })
   }
 }
 

@@ -6,7 +6,7 @@ import { Observable } from "rxjs"
     providedIn: "root",
 })
 export class VideoStreamService {
-    private apiUrl = "https://localhost:7293/api/videostream"
+    private apiUrl = "/api/videostream"
 
     constructor(@Inject(HttpClient) private http: HttpClient) { }
 
@@ -18,7 +18,7 @@ export class VideoStreamService {
     }
 
     getMjpegStreamImg(cameraId: string, count = 0): string {
-        return `https://localhost:7293/${cameraId}.jpg?i=${count}`
+        return `/${cameraId}.jpg?i=${count}`
     }
 
     getFullVideoStream(cameraId: string) {

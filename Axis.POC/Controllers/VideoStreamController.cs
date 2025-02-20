@@ -67,12 +67,15 @@ namespace Axis.POC.Controllers
                         //    .ProcessSynchronously();
                         _cameraFrames[cameraId] = filePath;
                         frame = filePath;
-                        FFMpegArguments
+                        _ = Task.Run(() =>
+                        {
+                            FFMpegArguments
                                 .FromUrlInput(new Uri(cgiUrl))
                                 .OutputToFile(filePath, true, options => options
                                     .WithCustomArgument("-y -q:v 1")
                                     .WithCustomArgument("-update 1"))
                                 .ProcessSynchronously();
+                        });
 
                         //frameStream.Seek(0, SeekOrigin.Begin);
                         //frame = frameStream.ToArray();

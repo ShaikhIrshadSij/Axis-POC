@@ -1,0 +1,4 @@
+﻿{
+  "camera2": "https://172.28.180.81/axis-cgi/mjpg/video.cgi?fps=20&resolution=320X240&compression=10",
+  "camera1": "https://172.28.180.81/axis-cgi/mjpg/video.cgi?fps=20&resolution=320X240&compression=10"
+}
