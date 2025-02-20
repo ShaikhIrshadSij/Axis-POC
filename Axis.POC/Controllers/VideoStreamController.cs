@@ -55,10 +55,11 @@ namespace Axis.POC.Controllers
                 {
                     if (!_cameraTimers.ContainsKey(cameraId))
                     {
+                        _cameraFrames[cameraId] = null;
                         GlobalFFOptions.Configure(options => options.BinaryFolder = _webHostEnvironment.WebRootPath);
                         using var frameStream = new MemoryStream();
                         await FFMpegArguments
-                            .FromUrlInput(new Uri(cgiUrl), options => options.WithFramerate(20))
+                            .FromUrlInput(new Uri(cgiUrl))
                             .OutputToPipe(new StreamPipeSink(frameStream), options => options
                                 .WithVideoCodec("mjpeg")
                                 .ForceFormat("mjpeg")
@@ -70,20 +71,27 @@ namespace Axis.POC.Controllers
                         _cameraFrames[cameraId] = frame;
                         _cameraTimers[cameraId] = new Timer(async _ =>
                         {
-                            GlobalFFOptions.Configure(options => options.BinaryFolder = _webHostEnvironment.WebRootPath);
-                            using var frameStream = new MemoryStream();
-                            await FFMpegArguments
-                                .FromUrlInput(new Uri(cgiUrl), options => options.WithFramerate(20))
-                                .OutputToPipe(new StreamPipeSink(frameStream), options => options
-                                    .WithVideoCodec("mjpeg")
-                                    .ForceFormat("mjpeg")
-                                    .WithFrameOutputCount(1))
-                                .ProcessAsynchronously();
+                            try
+                            {
+                                GlobalFFOptions.Configure(options => options.BinaryFolder = _webHostEnvironment.WebRootPath);
+                                using var frameStream = new MemoryStream();
+                                await FFMpegArguments
+                                    .FromUrlInput(new Uri(cgiUrl))
+                                    .OutputToPipe(new StreamPipeSink(frameStream), options => options
+                                        .WithVideoCodec("mjpeg")
+                                        .ForceFormat("mjpeg")
+                                        .WithFrameOutputCount(1))
+                                    .ProcessAsynchronously();
 
-                            frameStream.Seek(0, SeekOrigin.Begin);
-                            frame = frameStream.ToArray();
-                            _cameraFrames[cameraId] = frame;
-                        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(2));
+                                frameStream.Seek(0, SeekOrigin.Begin);
+                                frame = frameStream.ToArray();
+                                _cameraFrames[cameraId] = frame;
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Inside Timer {cameraId}: {ex.ToString()}");
+                            }
+                        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(0.7));
                     }
                 }
                 catch (Exception ex)
@@ -92,7 +100,10 @@ namespace Axis.POC.Controllers
                     return StatusCode(500, "Error capturing frame.");
                 }
             }
-
+            if (frame == null)
+            {
+                return NoContent();
+            }
             return File(frame, "image/jpeg");
         }
 

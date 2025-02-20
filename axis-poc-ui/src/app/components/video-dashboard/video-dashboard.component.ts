@@ -42,7 +42,7 @@ export class VideoDashboardComponent implements OnInit {
         for (let i = 0; i < this.cameras.length; i++) {
           setInterval(() => {
             this.streams[this.cameras[i]] = this.videoStreamService.getMjpegStream(this.cameras[i], new Date().valueOf() + Math.ceil(Math.random() * 100))
-          }, 1000 * 2)
+          }, 1000)
         }
       },
       (error) => console.error("Error fetching cameras:", error),
@@ -54,11 +54,11 @@ export class VideoDashboardComponent implements OnInit {
   }
 
   openVideoModal(cameraId: string) {
-    this.dialog.open(VideoModalComponent, {
-      width: "80%",
-      height: "80%",
-      data: { cameraId },
-    })
+    // this.dialog.open(VideoModalComponent, {
+    //   width: "80%",
+    //   height: "80%",
+    //   data: { cameraId },
+    // })
   }
 }
 
