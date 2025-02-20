@@ -67,14 +67,28 @@ namespace Axis.POC.Controllers
                         //    .ProcessSynchronously();
                         _cameraFrames[cameraId] = filePath;
                         frame = filePath;
-                        _ = Task.Run(() =>
+                        _ = Task.Run(async () =>
                         {
-                            FFMpegArguments
+                            try
+                            {
+                                if (System.IO.File.Exists(frame))
+                                {
+                                    System.IO.File.Delete(frame);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                filePath = $"{_webHostEnvironment.WebRootPath}/{cameraId}_{DateTime.Now.Ticks}.jpg";
+                                _cameraFrames[cameraId] = filePath;
+                                frame = filePath;
+                                Console.WriteLine(ex.ToString());
+                            }
+                            var ffmpegProcess = await FFMpegArguments
                                 .FromUrlInput(new Uri(cgiUrl))
                                 .OutputToFile(filePath, true, options => options
                                     .WithCustomArgument("-y -q:v 1")
                                     .WithCustomArgument("-update 1"))
-                                .ProcessSynchronously();
+                                .ProcessAsynchronously();
                         });
 
                         //frameStream.Seek(0, SeekOrigin.Begin);
@@ -117,7 +131,7 @@ namespace Axis.POC.Controllers
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine(ex.ToString());
+                        Console.WriteLine($"Error in read: {frame}");
                     }
                 }
             }
