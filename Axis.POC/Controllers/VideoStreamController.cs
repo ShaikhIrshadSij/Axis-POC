@@ -108,12 +108,53 @@ namespace Axis.POC.Controllers
             }
             if (System.IO.File.Exists(frame))
             {
-                return Ok(new
+                // 2 times re-tries
+                for (int i = 0; i < 2; i++)
                 {
-                    url = $"{Request.Scheme}://{Request.Host}/{cameraId}.jpg"
-                });
+                    try
+                    {
+                        return File(System.IO.File.ReadAllBytes(frame), "image/jpeg");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex.ToString());
+                    }
+                }
             }
             return NoContent();
+        }
+
+        [HttpGet]
+        [Route("{cameraId}/mjpeg-stream")]
+        public async Task MjpegStream(string cameraId)
+        {
+            Response.ContentType = "multipart/x-mixed-replace; boundary=ffserver";
+            var cgiUrl = _cameraService.GetCameraUrlById(cameraId);
+            var ffmpegProcess = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = $"{_webHostEnvironment.WebRootPath}/ffmpeg.exe",
+                    Arguments = $"-re -i {cgiUrl} -f mjpeg pipe:1",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false
+                }
+            };
+
+            ffmpegProcess.Start();
+
+            byte[] buffer = new byte[4096];
+            while (!ffmpegProcess.StandardOutput.EndOfStream)
+            {
+                int bytesRead = await ffmpegProcess.StandardOutput.BaseStream.ReadAsync(buffer, 0, buffer.Length);
+                if (bytesRead > 0)
+                {
+                    await Response.Body.WriteAsync(buffer, 0, bytesRead);
+                    await Response.Body.FlushAsync();
+                }
+            }
+
+            ffmpegProcess.WaitForExit();
         }
 
 

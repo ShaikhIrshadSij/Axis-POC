@@ -18,7 +18,7 @@ export class VideoStreamService {
     }
 
     getMjpegStreamImg(cameraId: string, count = 0): string {
-        return `/${cameraId}.jpg?i=${count}`
+        return `${this.apiUrl}/${cameraId}/mjpeg?i=${count}`
     }
 
     getFullVideoStream(cameraId: string) {
